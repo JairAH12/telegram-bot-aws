@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Bot-ARTF
+
+Globals:
+  Function:
+    Timeout: 9
+    Runtime: python3.8
+    MemorySize: 256
+    Architectures:
+      - x86_64
+
+Resources:
+  PTBFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ptb/
+      Handler: ptb_lambda.lambda_handler
+      FunctionUrlConfig:
+        AuthType: NONE
+
+Outputs:
+  TelegramApi:
+    Description: "Lambda URL for PTB function"
+    Value:
+      Fn::GetAtt: PTBFunctionUrl.FunctionUrl
