@@ -17,6 +17,17 @@ Resources:
     Properties:
       CodeUri: ptb/
       Handler: ptb_lambda.lambda_handler
+      Policies:
+          - RekognitionDetectOnlyPolicy: {}
+          - Statement:
+            - Effect: "Allow"
+              Action:
+                - ssm:GetParameters
+                - ssm:GetParameter
+                - ssm:GetParametersByPath
+              Resource:
+                - '*'
+                - 'arn:aws:ssm:::parameter/telegramartfbot/*'
       FunctionUrlConfig:
         AuthType: NONE
 

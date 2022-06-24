@@ -1,10 +1,10 @@
-# Sample-Python-Telegram-Bot-AWS-Serverless
+# Telegram-Bot-AWS-Serverless
 
-This project contains source code and supporting files for a [Python Telegram Bot](https://python-telegram-bot.readthedocs.io/en/stable/) serverless application, using [Webhooks](https://github.com/python-telegram-bot/python-telegram-bot/wiki/Webhooks), that you can deploy with the AWS SAM CLI. You can run this for free - the AWS Lambda free tier includes one million free requests per month and 400,000 GB-seconds of compute time per month.
+This project contains source code and supporting files for a [Python Telegram Bot](https://python-telegram-bot.readthedocs.io/en/stable/) serverless application, using [Webhooks](https://github.com/python-telegram-bot/python-telegram-bot/wiki/Webhooks), that you can deploy with the AWS SAM CLI.
 
 # Versions
 - Python 3.8
-- python-telegram-bot 13.11
+- python-telegram-bot 13.12
 
 # Architecture
 Requests come in via the [Lambda Function URL](https://aws.amazon.com/blogs/aws/announcing-aws-lambda-function-urls-built-in-https-endpoints-for-single-function-microservices/) endpoint, which get routed to a Lambda function. the Lambda function runs and posts back to Telegram. Logs are stored on CloudWatch.
@@ -15,29 +15,65 @@ It includes the following files and folders.
 - ptb_lambda.py - Code for the bot's Lambda function. It echos back whatever text is sent to the bot.
 - events - Invocation events that you can use to invoke the function.
 - tests - Unit tests for the application code.
+- data - Data loaded to S3 bucket
+- ruta_archivos.xlsx - Data paths
 - template.yaml - A template that defines the application's AWS resources.
-- requirements.txt - which pins the version of python-telegram-bot
+- requirements.txt - which pins the version of python-telegram-bot.
+
 
 The application uses several AWS resources, including a Lambda function and a Lambda Function URL HTTPS endpoint as a Telegram webhook. These resources are defined in the `template.yaml` file in this project. You can update the template to add AWS resources through the same deployment process that updates your application code.
 
-If you prefer to use an integrated development environment (IDE) to build and test your application, you can use the AWS Toolkit.  
-The AWS Toolkit is an open source plug-in for popular IDEs that uses the SAM CLI to build and deploy serverless applications on AWS. The AWS Toolkit also adds a simplified step-through debugging experience for Lambda function code. See the following links to get started.
-
-
-* [VS Code](https://docs.aws.amazon.com/toolkit-for-vscode/latest/userguide/welcome.html)
-
-## Deploy the sample application
+## Deploy the application
 
 - Create your bot using [BotFather](https://core.telegram.org/bots#6-botfather), and note the token, e.g. 12334342:ABCD124324234
-- Update ptb_lambda.py with the token
 - Install AWS CLI, and configure it
+
+
 
 The Serverless Application Model Command Line Interface (SAM CLI) is an extension of the AWS CLI that adds functionality for building and testing Lambda applications.
 
 To use the SAM CLI, you need the following tools.
-
+* AWS CLI - [Install the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 * SAM CLI - [Install the SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
 * [Python 3 installed](https://www.python.org/downloads/)
+
+## AWS CLI
+Configure AWS CLI
+
+Run this command to quickly set and view your credentials obtained from AWS IAM.
+```bash
+aws configure
+```
+
+You can view and edit your settings by directly editing the config and credentials files.
+```bash
+nano ~/.aws/credentials
+nano ~/.aws/config
+```
+
+## S3 Bucket
+Create bucket.
+
+`NOTE`: From now on, all commands are executed from the project root folder.
+```bash
+aws s3 mb s3://resources-bot-artf
+```
+Load paht data and xlsx folder with read permissions.
+```bash
+aws s3 cp data s3://resources-bot-artf/data --acl public-read --recursive
+aws s3 cp ruta_archivos.xlsx s3://resources-bot-artf --acl public-read
+```
+If you want delete buncked
+```bash
+aws s3 rb s3://resources-bot-artf
+```
+## AWS Systems Manager
+
+Create an SSM Parameter to store the Telegram token, replace `12334342:ABCD12432423` with your tocken.
+```bash
+aws ssm put-parameter --region us-east-1 --name "/telegramartfbot/telegram/bot_token" --type "SecureString" --value "12334342:ABCD12432423" --overwrite
+```
+## AWS CloudFormation
 
 To build and deploy your application for the first time, run the following in your shell:
 
@@ -54,9 +90,7 @@ The first command will build the source of your application. The second command 
 * **Allow SAM CLI IAM role creation**: Many AWS SAM templates, including this example, create AWS IAM roles required for the AWS Lambda function(s) included to access AWS services. By default, these are scoped down to minimum required permissions. To deploy an AWS CloudFormation stack which creates or modifies IAM roles, the `CAPABILITY_IAM` value for `capabilities` must be provided. If permission isn't provided through this prompt, to deploy this example you must explicitly pass `--capabilities CAPABILITY_IAM` to the `sam deploy` command.
 * **Save arguments to samconfig.toml**: If set to yes, your choices will be saved to a configuration file inside the project, so that in the future you can just re-run `sam deploy` without parameters to deploy changes to your application.
 
-- You can find your Lambda Function URL Endpoint in the output values displayed after deployment.  e.g. `https://1fgfgfd56.lambda-url.eu-west-1.on.aws/`
-- Update your [Telegram bot to change from polling to Webhook](https://xabaras.medium.com/setting-your-telegram-bot-webhook-the-easy-way-c7577b2d6f72), by pasting this URL in your browser, or curl'ing it:
-`https://api.telegram.org/bot12334342:ABCD124324234/setWebHook?url=https://1fgfgfd56.lambda-url.eu-west-1.on.aws/.` Use your bot token and Lambda Function URL endpoint. You can check that it was set correctly by going to `https://api.telegram.org/bot12334342:ABCD124324234/getWebhookInfo`, which should include the url of your Lambda Function URL, as well as any errors Telegram is encounterting calling your bot on that API.
+
 
 For future deploys, you can just run:
 
@@ -64,30 +98,45 @@ For future deploys, you can just run:
 sam build && sam deploy
 ```
 
+You can find your Lambda Function URL Endpoint in the output values displayed after deployment.  e.g. `https://1fgfgfd56.lambda-url.eu-west-1.on.aws/`
+
+Update your [Telegram bot to change from polling to Webhook](https://xabaras.medium.com/setting-your-telegram-bot-webhook-the-easy-way-c7577b2d6f72), by  curl'ing it:
+
+curl -F 'url=https://<API_URL>/bot' https://api.telegram.org/bot<BOT_TOKEN>/setWebhook
+```bash
+curl -F 'url=https://1fgfgfd56.lambda-url.us-east-1.on.aws/bot' https://api.telegram.org/bot12334342:ABCD124324234/setWebhook
+```
+or pasting this URL in your browser
+`https://api.telegram.org/bot12334342:ABCD124324234/setWebHook?url=https://1fgfgfd56.lambda-url.eu-west-1.on.aws/.`
+
+
+
+Use your bot token and Lambda Function URL endpoint. You can check that it was set correctly by going to `https://api.telegram.org/bot12334342:ABCD124324234/getWebhookInfo`, which should include the url of your Lambda Function URL, as well as any errors Telegram is encounterting calling your bot on that API.
+
 
 ## Use the SAM CLI to build and test locally
 
 Build your application with the `sam build --use-container` command.
 
 ```bash
-Sample-Python-Telegram-Bot-AWS-Serverless$ sam build --use-container
+sam build --use-container
 ```
 
-The SAM CLI installs dependencies defined in `hello_world/requirements.txt`, creates a deployment package, and saves it in the `.aws-sam/build` folder.
+The SAM CLI installs dependencies defined in `ptb/requirements.txt`, creates a deployment package, and saves it in the `.aws-sam/build` folder.
 
 Test a single function by invoking it directly with a test event. An event is a JSON document that represents the input that the function receives from the event source. Test events are included in the `events` folder in this project.
 
 Run functions locally and invoke them with the `sam local invoke` command.
 
 ```bash
-Sample-Python-Telegram-Bot-AWS-Serverless$ sam local invoke HelloWorldFunction --event events/event.json
+sam local invoke PTBFunction --event events/event.json
 ```
 
 The SAM CLI can also emulate your application's API. Use the `sam local start-api` to run the API locally on port 3000.
 
 ```bash
-Sample-Python-Telegram-Bot-AWS-Serverless$ sam local start-api
-Sample-Python-Telegram-Bot-AWS-Serverless$ curl http://localhost:3000/
+sam local start-api
+curl http://localhost:3000/
 ```
 
 
@@ -101,7 +150,7 @@ To simplify troubleshooting, SAM CLI has a command called `sam logs`. `sam logs`
 `NOTE`: This command works for all AWS Lambda functions; not just the ones you deploy using SAM.
 
 ```bash
-Sample-Python-Telegram-Bot-AWS-Serverless$ sam logs -n HelloWorldFunction --stack-name Sample-Python-Telegram-Bot-AWS-Serverless --tail
+sam logs -n PTBFunction --stack-name SPTBAWS --tail
 ```
 
 You can find more information and examples about filtering Lambda function logs in the [SAM CLI Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-logging.html).
@@ -111,12 +160,12 @@ You can find more information and examples about filtering Lambda function logs 
 Tests are defined in the `tests` folder in this project. Use PIP to install the test dependencies and run tests.
 
 ```bash
-Sample-Python-Telegram-Bot-AWS-Serverless$ pip install -r tests/requirements.txt --user
+pip install -r tests/requirements.txt --user
 # unit test
-Sample-Python-Telegram-Bot-AWS-Serverless$ python -m pytest tests/unit -v
+python -m pytest tests/unit -v
 # integration test, requiring deploying the stack first.
 # Create the env variable AWS_SAM_STACK_NAME with the name of the stack we are testing
-Sample-Python-Telegram-Bot-AWS-Serverless$ AWS_SAM_STACK_NAME=<stack-name> python -m pytest tests/integration -v
+AWS_SAM_STACK_NAME=<stack-name> python -m pytest tests/integration -v
 ```
 
 ## Cleanup
@@ -130,5 +179,3 @@ sam delete
 ## Resources
 
 See the [AWS SAM developer guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html) for an introduction to SAM specification, the SAM CLI, and serverless application concepts.
-
-Next, you can use AWS Serverless Application Repository to deploy ready to use Apps that go beyond hello world samples and learn how authors developed their applications: [AWS Serverless Application Repository main page](https://aws.amazon.com/serverless/serverlessrepo/)

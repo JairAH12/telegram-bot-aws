@@ -6,9 +6,12 @@ from telegram import *
 import pandas as pd
 import openpyxl
 import urllib.request
+from aws_lambda_powertools.utilities import parameters
 
+ssm_provider = parameters.SSMProvider()
 
-TelegramBotToken = os.environ['TOKEN_BOT']
+TelegramBotToken = ssm_provider.get("/telegramartfbot/telegram/bot_token", decrypt=True)
+
 
 bot = Bot(token=TelegramBotToken)
 dispatcher = Dispatcher(bot, None, use_context=True)
@@ -19,7 +22,7 @@ s3Buncket="https://resources-bot-artf.s3.amazonaws.com/"
 
 def start(update, context):
     chat_id = update.message.chat_id
-    context.bot.send_message(chat_id=chat_id, text= "Bienvenidoooooo∫ al bot de Estadística de la ARTF.\n\n"
+    context.bot.send_message(chat_id=chat_id, text= "Bienvenido al bot de Estadística de la ARTF.\n\n"
                              "Con este bot puedes consultar el avance de los datos más importantes del,"
                              " Sistema Ferroviario Mexicano \U0001F686 /help.")
 
