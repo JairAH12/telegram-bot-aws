@@ -58,7 +58,7 @@ Create bucket.
 ```bash
 aws s3 mb s3://resources-bot-artf
 ```
-Load paht data and xlsx folder with read permissions.
+Load the resources and paths of the documents that feed the bot.
 ```bash
 aws s3 cp data s3://resources-bot-artf/data --acl public-read --recursive
 aws s3 cp ruta_archivos.xlsx s3://resources-bot-artf --acl public-read
