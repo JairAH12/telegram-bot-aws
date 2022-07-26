@@ -12,7 +12,7 @@ Requests come in via the [Lambda Function URL](https://aws.amazon.com/blogs/aws/
 
 It includes the following files and folders.
 
-- ptb_lambda.py - Code for the bot's Lambda function. It echos back whatever text is sent to the bot.
+- ptb_lambda.py - Code for the bot's Lambda function.
 - events - Invocation events that you can use to invoke the function.
 - tests - Unit tests for the application code.
 - data - Data loaded to S3 bucket
