@@ -3,9 +3,10 @@ version = 0.1
 [default.deploy]
 [default.deploy.parameters]
 stack_name = "Python-Bot-ARTF"
-s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-x0yc0tib4w2j"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-f24poujan7uv"
 s3_prefix = "Python-Bot-ARTF"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
 disable_rollback = true
 image_repositories = []
+confirm_changeset = true

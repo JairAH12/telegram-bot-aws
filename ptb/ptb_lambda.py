@@ -12,11 +12,10 @@ ssm_provider = parameters.SSMProvider()
 
 TelegramBotToken = ssm_provider.get("/telegramartfbot/telegram/bot_token", decrypt=True)
 
-
 bot = Bot(token=TelegramBotToken)
 dispatcher = Dispatcher(bot, None, use_context=True)
-datos = pd.read_excel("https://resources-bot-artf.s3.amazonaws.com/ruta_archivos.xlsx",sheet_name="rutas",index_col=0)
-s3Buncket="https://resources-bot-artf.s3.amazonaws.com/"
+datos = pd.read_excel("https://resources-bot-artf1.s3.amazonaws.com/ruta_archivos.xlsx",sheet_name="rutas",index_col=0)
+s3Buncket="https://resources-bot-artf1.s3.amazonaws.com/"
 
 
 
