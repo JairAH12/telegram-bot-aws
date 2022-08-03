@@ -4,6 +4,7 @@ version = 0.1
 [default.deploy.parameters]
 stack_name = "Python-Bot-ARTF"
 s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-f24poujan7uv"
+# s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-p2bxerjdcewn"
 s3_prefix = "Python-Bot-ARTF"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
