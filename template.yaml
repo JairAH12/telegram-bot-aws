@@ -25,11 +25,44 @@ Resources:
                 - ssm:GetParameters
                 - ssm:GetParameter
                 - ssm:GetParametersByPath
+                - dynamodb:*
               Resource:
                 - '*'
                 - 'arn:aws:ssm:::parameter/telegramartfbot/*'
+                - 'arn:aws:dynamodb:::table/counters'
+                - 'arn:aws:dynamodb:::table/registros'
       FunctionUrlConfig:
         AuthType: NONE
+
+  CountersTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: counters
+      AttributeDefinitions:
+        - AttributeName: counterName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: counterName
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  RegintersTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: registros
+      BillingMode : PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: consulta
+          AttributeType: S
+        - AttributeName: fecha
+          AttributeType: S
+      KeySchema:
+        - AttributeName: consulta
+          KeyType: HASH
+        - AttributeName: fecha
+          KeyType: RANGE
 
 Outputs:
   TelegramApi:

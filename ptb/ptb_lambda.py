@@ -7,6 +7,7 @@ import pandas as pd
 import openpyxl
 import urllib.request
 from aws_lambda_powertools.utilities import parameters
+from ptb_dynamodb import registrar,consultarContador
 
 ssm_provider = parameters.SSMProvider()
 
@@ -42,6 +43,7 @@ def help_command(update: Update, context: CallbackContext):
     "/robo - Datos de robos en el SFM\n"
     "/vandalismo - Datos de vandalismo en el SFM\n"
     "/combustible - Datos del consumo energético en el SFM\n"
+    f"Hasta el momento se han realizado {consultarContador()} consultas."
     )
 
 def button(update: Update, context: CallbackContext):
@@ -94,6 +96,7 @@ def carga_anual(update: Update, context: CallbackContext, chat_id):
     imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
     context.bot.sendPhoto(chat_id, photo=imgpath)
 
+    registrar(update.callback_query, 'carga_anual')
 
 def carga_mensual(update: Update, context: CallbackContext, chat_id):
     context.bot.send_message(chat_id, text="Carros cargados:")
@@ -136,6 +139,8 @@ def carga_mensual(update: Update, context: CallbackContext, chat_id):
     tab = urllib.request.urlopen(tabpath)
     tab.name = img + '.xlsx'
     context.bot.sendDocument(chat_id, document=tab)
+
+    registrar(update.callback_query, 'carga_mensual')
 
 def btn_comercio(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("Comercio anual", callback_data='3_comercio_anual'),
@@ -181,6 +186,8 @@ def comercio_anual(update: Update, context: CallbackContext, chat_id):
     tab.name = doc + '.xlsx'
     context.bot.sendDocument(chat_id, document=tab)
 
+    registrar(update.callback_query, 'comercio_anual')
+
 def comercio_mensual(update: Update, context: CallbackContext, chat_id):
     ''' Tablas '''
     ''' carga de comercio '''
@@ -204,6 +211,8 @@ def comercio_mensual(update: Update, context: CallbackContext, chat_id):
     tab = urllib.request.urlopen(tabpath)
     tab.name = doc + '.xlsx'
     context.bot.sendDocument(chat_id, document=tab)
+
+    registrar(update.callback_query, 'comercio_mensual')
 
 
 ##################### ESTADÍSTICA DE PASAJEROS #####################
@@ -233,6 +242,8 @@ def pasajeros_anual(update: Update, context: CallbackContext, chat_id):
     tab.name = doc + '.xlsx'
     context.bot.sendDocument(chat_id, document=tab)
 
+    registrar(update.callback_query, 'pasajeros_anual')
+
 def pasajeros_mensual(update: Update, context: CallbackContext, chat_id):
     ''' pasajeros '''
     context.bot.send_message(chat_id, text="Pasajeros:")
@@ -251,6 +262,8 @@ def pasajeros_mensual(update: Update, context: CallbackContext, chat_id):
     tab = urllib.request.urlopen(tabpath)
     tab.name = doc + '.xlsx'
     context.bot.sendDocument(chat_id, document=tab)
+
+    registrar(update.callback_query, 'pasajeros_mensual')
 
 ##################### ESTADÍSTICA DE EQUIPO FERROVIARIO ##############
 ################################################################
@@ -286,6 +299,8 @@ def equipo(update: Update, context: CallbackContext):
     tab.name = doc + '.xlsx'
     context.bot.sendDocument(update.message.chat_id, document=tab)
 
+    registrar(update, 'equipo')
+
 ##################### ESTADÍSTICA DE CONSUMO ENERGÉTICO ##############
 ################################################################
 def combustible(update: Update, context: CallbackContext):
@@ -320,6 +335,8 @@ def combustible(update: Update, context: CallbackContext):
     imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
     context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
 
+    registrar(update, 'combustible')
+
 ##################### ESTADÍSTICA DE PERSONAL ##############
 ################################################################
 def personal(update: Update, context: CallbackContext):
@@ -342,6 +359,8 @@ def personal(update: Update, context: CallbackContext):
     img = "epa"
     imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
     context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
+
+    registrar(update, 'personal')
 
 ##################### ESTADÍSTICA DE SINIESTROS #####################
 ################################################################
@@ -387,6 +406,8 @@ def siniestros(update: Update, context: CallbackContext):
     tab.name = doc + '.xlsx'
     context.bot.sendDocument(update.message.chat_id, document=tab)
 
+    registrar(update, 'siniestros')
+
 def robo(update: Update, context: CallbackContext):
     ''' Robos totales '''
     context.bot.send_message(update.message.chat_id, text="Datos de robo en el SFM.\n\n")
@@ -426,6 +447,8 @@ def robo(update: Update, context: CallbackContext):
     tab = urllib.request.urlopen(tabpath)
     tab.name = doc + '.xlsx'
     context.bot.sendDocument(update.message.chat_id, document=tab)
+
+    registrar(update, 'robo')
 
 def vandalismo(update: Update, context: CallbackContext):
     ''' Vandalismo totales '''
@@ -479,6 +502,8 @@ def vandalismo(update: Update, context: CallbackContext):
     tab.name = doc + '.xlsx'
     context.bot.sendDocument(update.message.chat_id, document=tab)
 
+    registrar(update, 'vandalismo')
+
 def bloqueos(update: Update, context: CallbackContext):
     ''' Bloqueos totales '''
     context.bot.send_message(update.message.chat_id, text="Datos de bloqueos en el SFM.\n\n")
@@ -511,6 +536,8 @@ def bloqueos(update: Update, context: CallbackContext):
     tab = urllib.request.urlopen(tabpath)
     tab.name = img + '.xlsx'
     context.bot.sendDocument(update.message.chat_id, document=tab)
+
+    registrar(update, 'bloqueos')
 
 def desconocido(update: Update, context: CallbackContext):
     ''' Desconocido '''
