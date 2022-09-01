@@ -1,3 +1,4 @@
+# Este archivo es  la plantilla de CloudFormation aquí se describen todos los recursos de AWS que se van a provisionar a bot
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
@@ -11,6 +12,9 @@ Globals:
     Architectures:
       - x86_64
 
+# Es importante definir dentro del recurso  Function, los permisos que la función lambda para que la función pueda hacer usos de 
+# los servicios de AWS en local no se presentan problemas al omitirlos pero al desplegar la función está  presentará errores en tiempo de ejecución
+# En la sección Policies se definen las acciones que podrá realizar la lambda y en cuales recursos los podrá implementar  
 Resources:
   PTBFunction:
     Type: AWS::Serverless::Function
@@ -33,7 +37,7 @@ Resources:
                 - 'arn:aws:dynamodb:::table/registros'
       FunctionUrlConfig:
         AuthType: NONE
-
+  # Se configura la tabla que solo se va a encargar de llevar la cuenta de las consultas, se usa esta tabla porque el autoincremento no existe en DynamoDB 
   CountersTable:
     Type: 'AWS::DynamoDB::Table'
     Properties:
@@ -47,7 +51,7 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
-
+  # Se configura la tabla que almacenará datos referentes a la consultas 
   RegintersTable:
     Type: 'AWS::DynamoDB::Table'
     Properties:
@@ -63,9 +67,10 @@ Resources:
           KeyType: HASH
         - AttributeName: fecha
           KeyType: RANGE
-
+# Se configura la salida que se obtendrá en la línea de comandos al terminar el despliegue
 Outputs:
   TelegramApi:
     Description: "Lambda URL for PTB function"
+    # Se configura la salida que se obtendrá en la línea de comandos al terminar el despliegue
     Value:
       Fn::GetAtt: PTBFunctionUrl.FunctionUrl

@@ -1,4 +1,32 @@
+"""Este módulo se definen todos los controladores del bot 
 
+Se define la forma en la que  el bot va a interactuar con el usuario
+En algunos casos se despliega un menú para que el usuario especifique la resolución de la información que el usuario solicitara
+Accede a una hoja de cálculo para obtener la ruta de descarga de gráficas y tablas
+Se recopila información para futuros análisis
+
+Funciones disponibles:
+- start:  Manda el primer mensaje del bot
+- help_command: Despliega una lista con los comandos y muestra un el número de consultas
+- button: Para las opciones con resolución de información, ejecuta la función correspondiente
+- bnt_carga: Despliega el menú para seleccionar la resolución de la información de carga
+- carga_anual: Envía la información de la carga con resolución anual y se registra la consulta
+- carga_mensual:  Envía la información de la carga con resolución mensual y se registra la consulta
+- btn_comercio: Despliega el menú para seleccionar la resolución de la información del comercio exterior
+- comercio_anual:Envía la información de comercio exterior con resolución anual y se registra la consulta
+- comercio_mensual: Envía la información del comercio exterior con resolución mensual y se registra la consulta
+- btn_pasajeros: Despliega el menú para seleccionar la resolución de la información de los pasajeros
+- pasajeros_anual:Envía la información de los pasajeros con resolución anual y se registra la consulta
+- pasajeros_mesual: Envía la información de los pasajeros con resolución mensual y se registra la consulta
+- equipo: Envía la información del equipo ferroviario del SFM
+- combustible: Envía la información del consumo de combustible en el SFM
+- personal: Envía la información del personal del SFM
+- siniestros: Envía la información sobre los siniestros en el SFM
+- robo: Envía la información sobre los robos en el SFM
+- vandalismo: Envía la información del vandalismo en el SFM
+- bloqueos: Envía la información de los bloqueos en el SFM
+- desconocido:  Envía un mensaje para indicar que no se reconoce el comando
+"""
 from telegram.ext import *
 from telegram import *
 import pandas as pd
@@ -7,7 +35,7 @@ import urllib.request
 
 from ptb_dynamodb import registrar,consultarContador
 
-
+# s3Bucket se concatenará con la cadena que se obtendrá del dataFrame “datos”  para conformar la ruta de descarga de los elementos almacenados en S3 (imgPath, docPath ó tabPath según corresponda)
 datos = pd.read_excel("https://resources-bot-artf1.s3.amazonaws.com/ruta_archivos.xlsx",sheet_name="rutas",index_col=0)
 s3Buncket="https://resources-bot-artf1.s3.amazonaws.com/"
 
@@ -40,12 +68,15 @@ def help_command(update: Update, context: CallbackContext):
     f"Hasta el momento se han realizado {consultarContador()} consultas."
     )
 
+# en ptb_lambda en la función lambda_handler se implementa el método CallbackQueryHandler este guarda las opciones seleccionadas
+#  de los menús de btn_carga, btn_comercio y btn_pasajeros seleccionadas en el atributo callback_query de update
 def button(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
     chat_id=query.message.chat_id
     context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING, timeout=None)
 
+    # se recupera las opciones seleccionadas de los menús de btn_carga, btn_comercio y btn_pasajeros y se implementa la función correspondiente 
     if query.data == '1_carga_anual':
         query.edit_message_text(text="Datos anuales de carga del SFM.")
         carga_anual(update, context, chat_id)
@@ -75,10 +106,12 @@ def btn_carga(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text('¿Con qué periodicidad prefieres la información? \U0001F4C5:', reply_markup=reply_markup)
 
+# para los handler que envían archivos  se usa un proceso muy similar al de carga_mensual
 def carga_anual(update: Update, context: CallbackContext, chat_id):
     ''' toneladas '''
     context.bot.send_message(chat_id, text="Toneladas netas:")
     carpeta = 1
+    # se asignan el valor de valores de “img”  para obtener la ruta con con el método loc del dataFrame “datos”
     img = "eta"
     imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
     context.bot.sendPhoto(chat_id, photo=imgpath)
@@ -90,18 +123,22 @@ def carga_anual(update: Update, context: CallbackContext, chat_id):
     imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
     context.bot.sendPhoto(chat_id, photo=imgpath)
 
+    # la función “registrar” almacena la hora, id del mensaje que provienen del objeto update  y el tipo de consulta que se realizó en tablas de DynamoDB
     registrar(update.callback_query, 'carga_anual')
 
 def carga_mensual(update: Update, context: CallbackContext, chat_id):
     context.bot.send_message(chat_id, text="Carros cargados:")
     carpeta = 1
+    # se asignan los valores de valores de “img” y “doc” para obtener la ruta con con el método loc del dataFrame “datos”
     img = "carros"
     doc = "tcarros"
     imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
+    # para el caso de “doc” datos.loc regresa una lista porque encuentra dos coincidencias el elemento [0] tiene terminación .xlsx el elemento [1] tiene terminación .png
     docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
     tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
     context.bot.sendPhoto(chat_id, photo=docpath)
     context.bot.sendPhoto(chat_id, photo=imgpath)
+    # para poder implementar el método sendDocument de bot es necesario pasarle cómo argumento come tipo _UrlopenRet 
     tab = urllib.request.urlopen(tabpath)
     tab.name = img + '.xlsx'
     context.bot.sendDocument(chat_id, document=tab)
@@ -134,6 +171,7 @@ def carga_mensual(update: Update, context: CallbackContext, chat_id):
     tab.name = img + '.xlsx'
     context.bot.sendDocument(chat_id, document=tab)
 
+    # la función “registrar” almacena la hora, id del mensaje que provienen del objeto update  y el tipo de consulta que se realizó en tablas de DynamoDB
     registrar(update.callback_query, 'carga_mensual')
 
 def btn_comercio(update: Update, context: CallbackContext):

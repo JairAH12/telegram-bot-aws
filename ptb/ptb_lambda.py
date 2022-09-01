@@ -7,6 +7,7 @@ from telegram import Update, Bot
 from ptb_telegramHandlers import button, start, help_command, btn_carga, btn_comercio, btn_pasajeros, equipo, combustible, personal, siniestros, robo, vandalismo, bloqueos, desconocido
 from aws_lambda_powertools.utilities import parameters
 
+# TelegramBotToken se obtiene del servicio de AWS Systems Manager 
 ssm_provider = parameters.SSMProvider()
 TelegramBotToken = ssm_provider.get("/telegramartfbot/telegram/bot_token", decrypt=True)
 
