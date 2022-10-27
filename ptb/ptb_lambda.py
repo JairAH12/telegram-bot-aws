@@ -1,10 +1,9 @@
-
 import json
-from telegram.ext import Dispatcher, CallbackQueryHandler, CommandHandler, MessageHandler, Filters
+from telegram.ext import Dispatcher, CallbackQueryHandler, CommandHandler, MessageHandler, Filters, ConversationHandler
 from telegram import Update, Bot
 
 
-from ptb_telegramHandlers import button, start, help_command, btn_carga, btn_comercio, btn_pasajeros, equipo, combustible, personal, siniestros, robo, vandalismo, bloqueos, desconocido
+from ptb_telegramHandlers import  start, btn_carga, btn_comercio, btn_pasajeros, equipo, combustible, personal, siniestros, robo, vandalismo, bloqueos, desconocido, mensual, anual, tablas, graficas, excel
 from aws_lambda_powertools.utilities import parameters
 
 # TelegramBotToken se obtiene del servicio de AWS Systems Manager 
@@ -14,24 +13,44 @@ TelegramBotToken = ssm_provider.get("/telegramartfbot/telegram/bot_token", decry
 bot = Bot(token=TelegramBotToken)
 dispatcher = Dispatcher(bot, None, use_context=True)
 
+# States
+FIRST, SECOND, THIRD = range(3)
+
+# Callback data
+CARGA, COMERCIO, PASAJEROS, EQUIPO, COMBUSTIBLE, PERSONAL, SINIESTROS, ROBO, VANDALISMO, BLOQUEOS, MENSUAL, ANUAL, GRAFICA, TABLA, EXCEL = range(15)
+
 
 def lambda_handler(event, context):
 
-    dispatcher.add_handler(CallbackQueryHandler(button))
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(CommandHandler('help',help_command))
-    dispatcher.add_handler(CommandHandler('carga', btn_carga))
-    dispatcher.add_handler(CommandHandler('comercio',btn_comercio))
-    dispatcher.add_handler(CommandHandler('pasajeros', btn_pasajeros))
-    dispatcher.add_handler(CommandHandler('equipo',equipo))
-    dispatcher.add_handler(CommandHandler('combustible',combustible))
-    dispatcher.add_handler(CommandHandler('personal',personal))
-    dispatcher.add_handler(CommandHandler('siniestros',siniestros))
-    dispatcher.add_handler(CommandHandler('robo',robo))
-    dispatcher.add_handler(CommandHandler('vandalismo', vandalismo))
-    dispatcher.add_handler(CommandHandler('bloqueos', bloqueos))
+    # se configura el conversation handler con los estados FIRST, SECOND y THIRD
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler(command='start', callback=start)],
+        states={
+            FIRST: [CallbackQueryHandler(btn_carga, pattern='^' + str(CARGA) + '$'),
+                    CallbackQueryHandler(btn_comercio, pattern='^' + str(COMERCIO) + '$'),
+                    CallbackQueryHandler(btn_pasajeros, pattern='^' + str(PASAJEROS) + '$'),
+                    CallbackQueryHandler(equipo, pattern='^' + str(EQUIPO) + '$'),
+                    CallbackQueryHandler(combustible, pattern='^' + str(COMBUSTIBLE) + '$'),
+                    CallbackQueryHandler(personal, pattern='^' + str(PERSONAL) + '$'),
+                    CallbackQueryHandler(siniestros, pattern='^' + str(SINIESTROS) + '$'),
+                    CallbackQueryHandler(robo, pattern='^' + str(ROBO) + '$'),
+                    CallbackQueryHandler(vandalismo, pattern='^' + str(VANDALISMO) + '$'),
+                    CallbackQueryHandler(bloqueos, pattern='^' + str(BLOQUEOS) + '$')
+                    ],
+            SECOND: [CallbackQueryHandler(mensual, pattern='^' + str(MENSUAL) + '$'),
+                     CallbackQueryHandler(anual, pattern='^' + str(ANUAL) + '$')
+                     ],
+            THIRD:  [CallbackQueryHandler(tablas, pattern='^' + str(TABLA) + '$'),
+                     CallbackQueryHandler(graficas, pattern='^' + str(GRAFICA) + '$'),
+                     CallbackQueryHandler(excel, pattern='^' + str(EXCEL) + '$')
+                    ]
+        },
+        fallbacks=[CommandHandler(command='start', callback=start)]
+    )
+     
+    # 
+    dispatcher.add_handler(conv_handler)
     dispatcher.add_handler(MessageHandler(Filters.command, desconocido))
-
     try:
         dispatcher.process_update(
             Update.de_json(json.loads(event["body"]), bot)
@@ -44,3 +63,4 @@ def lambda_handler(event, context):
     return {
         'statusCode': 200
     }
+

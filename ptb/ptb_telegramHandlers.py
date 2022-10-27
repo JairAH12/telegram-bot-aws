@@ -1,9 +1,13 @@
 """Este módulo se definen todos los controladores del bot 
 
-Se define la forma en la que  el bot va a interactuar con el usuario
-En algunos casos se despliega un menú para que el usuario especifique la resolución de la información que el usuario solicitara
-Accede a una hoja de cálculo para obtener la ruta de descarga de gráficas y tablas
-Se recopila información para futuros análisis
+el usuario inicia la conversación con el bot al enviar el comando /start, esto llama a la función start que despliega
+un listado de botones para seleccionar el tipo de información, este se considera el estado FIRST,  enseguida se despliega
+una nueva lista de botones para escoger el perio, este conforma al estado SECOND, por último se despliegan las opciones
+para escoger el formato, este será el estado THIRD, este último estado manda a llamar a las
+funciones tablas(), graficas(), excel() dependiendo de la selección de usuario, estas funciones envían los archivos.
+Durante el todo el proceso se usan las listas carpeta y frecuencia para almacenar la selecciones del usuario, generar
+un identificador y con los diccionarios catalogo_graficas, catologo_tablas y mensajes, recuperar los nombres de los archivos a enviar.
+
 
 Funciones disponibles:
 - start:  Manda el primer mensaje del bot
@@ -39,538 +43,330 @@ from ptb_dynamodb import registrar,consultarContador
 datos = pd.read_excel("https://resources-bot-artf1.s3.amazonaws.com/ruta_archivos.xlsx",sheet_name="rutas",index_col=0)
 s3Buncket="https://resources-bot-artf1.s3.amazonaws.com/"
 
+# States
+FIRST, SECOND, THIRD = range(3)
+
+# Callback data
+CARGA, COMERCIO, PASAJEROS, EQUIPO, COMBUSTIBLE, PERSONAL, SINIESTROS, ROBO, VANDALISMO, BLOQUEOS, MENSUAL, ANUAL, GRAFICA, TABLA, EXCEL = range(15)
+
+# Catalogos de nombres de archivos
+catalogo_graficas = {'110': ['carros', 'toneladas', 'tkm'],
+                     '111': ['eta', 'etkma'],
+                     '211': ['etca', 'epcea'],
+                     '310': ['ptm'],
+                     '311': ['vpa'],
+                     '410': ['ecfa'],
+                     '510': ['ecca'],
+                     '610': ['epa'],
+                     '710': ['rsm', 'esgt'],
+                     '810': ['rrm'],
+                     '910': ['vtm', 'vvm'],
+                     '1010': ['ebf']
+                     }
+# catalogo tablas se usa para tablas y excel
+catalogo_tablas = { '110': ['tcarros', 'ttoneladas', 'ttkm'],
+                    '210': ['tccem', 'ttkmcem'],
+                    '211': ['tccea','ttkmcea'],
+                    '310': ['tptm'],
+                    '311': ['tvpa'],
+                    '410': ['tefa', 'tecfa'],
+                    '510': ['tcepa', 'tcdm'],
+                    '610': ['tpea'],
+                    '710': ['trsm','tsgt','trscg'],
+                    '810': ['trrm', 'trct', 'trcv'],
+                    '910': ['tvtm', 'tvvm', 'tvct', 'tvcv'],
+                    '1010': ['trbva', 'thvb']
+                    }
+
+mensajes = {         '110': ['carga_mensual', 'Datos mensuales de carga del SFM.'],
+                     '111': ['carga_anual', 'Datos anuales de carga del SFM.'],
+                     '210': ['comercio_mensual','Datos mensuales de comercio exterior del SFM.'],
+                     '211': ['comercio_anual','Datos anuales de comercio exterior del SFM.'],
+                     '310': ['pasajeros_mensual','Datos mensuales de pasajeros del SFM.'],
+                     '311': ['pasajeros_anual','Datos anuales de pasajeros del SFM.'],
+                     '410': ['equipo','Datos de equipo ferroviario del SFM.'],
+                     '510': ['combustible','Datos del consumo energético del SFM.'],
+                     '610': ['personal','Datos del personal del SFM.'],
+                     '710': ['siniestros','Datos de siniestros en el SFM.'],
+                     '810': ['robo','Datos de robo en el SFM.'],
+                     '910': ['vandalismo','Datos de vandalismo en el SFM.'],
+                     '1010': ['bloqueos','Datos de bloqueos en el SFM.']
+                     }
+
+carpeta = list()
+frecuencia = list()
 
 
-
+#  inicia conversación con el bot
 def start(update, context):
-    chat_id = update.message.chat_id
-    context.bot.send_message(chat_id=chat_id, text= "Bienvenido al bot de Estadística de la ARTF.\n\n"
-                             "Con este bot puedes consultar el avance de los datos más importantes del,"
-                             " Sistema Ferroviario Mexicano \U0001F686 /help.")
+    carpeta.clear()
+    frecuencia.clear()
+    fname = update.message.from_user.first_name
 
-def help_command(update: Update, context: CallbackContext):
-    update.message.chat.send_action(action=ChatAction.TYPING,timeout=None)
-    ''' Help'''
+    # construye InlineKeyboard
+    keyboard1 = [InlineKeyboardButton("Carga", callback_data=str(CARGA))]
+    keyboard2 = [InlineKeyboardButton("Comercio", callback_data=str(COMERCIO))]
+    keyboard3 = [InlineKeyboardButton("Pasajeros", callback_data=str(PASAJEROS))]
+    keyboard4 = [InlineKeyboardButton("Equipo", callback_data=str(EQUIPO))]
+    keyboard5 = [InlineKeyboardButton("Combustible", callback_data=str(COMBUSTIBLE))]
+    keyboard6 = [InlineKeyboardButton("Personal", callback_data=str(PERSONAL))]
+    keyboard7 = [InlineKeyboardButton("Siniestros", callback_data=str(SINIESTROS))]
+    keyboard8 = [InlineKeyboardButton("Robo", callback_data=str(ROBO))]
+    keyboard9 = [InlineKeyboardButton("Vandalismo", callback_data=str(VANDALISMO))]
+    keyboard10 = [InlineKeyboardButton("Boqueos", callback_data=str(BLOQUEOS))]
+    
+    # creata reply markup
+    reply_markup = InlineKeyboardMarkup([keyboard1, keyboard2,keyboard3,keyboard4,keyboard5, keyboard6,keyboard7,keyboard8,keyboard9,keyboard10])
+
+    # actualiza el mensaje y despliega los botones
     update.message.reply_text(
-    "Este bot te permite consultar los datos estadísticos más importantes del ferrocarril \U0001F686.\n\n"
-    "Uiliza /start para checar si está activo este bot. "
-    "A continuación se muestra la lista de comandos que puedes utilizar:\n\n"
-    "/carga - Datos de movimiento de carga\n"
-    "/pasajeros - Datos de movimiento de pasajeros\n"
-    "/comercio - Datos del comercio exterior\n"
-    "/equipo - Datos del equipo del SFM\n"
-    "/personal - Datos del personal del SFM\n"
-    "/bloqueos - Datos de vandalismo en el SFM\n"
-    "/siniestros - Datos de siniestros del SFM\n"
-    "/robo - Datos de robos en el SFM\n"
-    "/vandalismo - Datos de vandalismo en el SFM\n"
-    "/combustible - Datos del consumo energético en el SFM\n"
-    f"Hasta el momento se han realizado {consultarContador()} consultas."
+        f"Bienvenido {format(fname)}. Este bot te permite consultar los datos estadísticos más importantes del ferrocarril \U0001F686.\n"
+        f"Hasta el momento se han realizado {consultarContador()} consultas.\n\n"
+        "A continuación se muestra la lista de comandos que puedes utilizar:",
+        reply_markup=reply_markup
     )
+    # tell ConversationHandler that we're in state 'FIRST' now
+    return FIRST
 
-# en ptb_lambda en la función lambda_handler se implementa el método CallbackQueryHandler este guarda las opciones seleccionadas
-#  de los menús de btn_carga, btn_comercio y btn_pasajeros seleccionadas en el atributo callback_query de update
-def button(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
-    chat_id=query.message.chat_id
-    context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING, timeout=None)
-
-    # se recupera las opciones seleccionadas de los menús de btn_carga, btn_comercio y btn_pasajeros y se implementa la función correspondiente 
-    if query.data == '1_carga_anual':
-        query.edit_message_text(text="Datos anuales de carga del SFM.")
-        carga_anual(update, context, chat_id)
-    elif query.data == '1_carga_mensual':
-        query.edit_message_text(text="Datos mensuales de carga del SFM.")
-        carga_mensual(update, context, chat_id)
-    elif query.data == '2_pasajeros_anual':
-        query.edit_message_text(text="Datos anuales de pasajeros del SFM.")
-        pasajeros_anual(update, context, chat_id)
-    elif query.data == '2_pasajeros_mensual':
-        query.edit_message_text(text="Datos mensuales de pasajeros del SFM.")
-        pasajeros_mensual(update, context, chat_id)
-    elif query.data == '3_comercio_anual':
-        query.edit_message_text(text="Datos anuales de comercio exterior del SFM.")
-        comercio_anual(update, context, chat_id)
-    elif query.data == '3_comercio_mensual':
-        query.edit_message_text(text="Datos mensuales de comercio exterior del SFM.")
-        comercio_mensual(update, context, chat_id)
-    ConversationHandler.END
 
 
 ##################### ESTADÍSTICA DE CARGA #####################
 ################################################################
-def btn_carga(update: Update, context: CallbackContext):
-    keyboard = [[InlineKeyboardButton("Carga anual", callback_data='1_carga_anual'),
-                 InlineKeyboardButton("Carga mensual", callback_data='1_carga_mensual')]]
+def btn_carga(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(1)
+    keyboard = [[InlineKeyboardButton("Carga anual", callback_data=str(ANUAL)),
+                 InlineKeyboardButton("Carga mensual", callback_data=str(MENSUAL))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text('¿Con qué periodicidad prefieres la información? \U0001F4C5:', reply_markup=reply_markup)
+    query.edit_message_text('¿Con qué periodicidad prefieres la información de carga del SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return SECOND
 
-# para los handler que envían archivos  se usa un proceso muy similar al de carga_mensual
-def carga_anual(update: Update, context: CallbackContext, chat_id):
-    ''' toneladas '''
-    context.bot.send_message(chat_id, text="Toneladas netas:")
-    carpeta = 1
-    # se asignan el valor de valores de “img”  para obtener la ruta con con el método loc del dataFrame “datos”
-    img = "eta"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-
-    ''' toneladas kilómetro'''
-    context.bot.send_message(chat_id, text="Toneladas-kilómetro")
-    carpeta = 1
-    img = "etkma"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-
-    # la función “registrar” almacena la hora, id del mensaje que provienen del objeto update  y el tipo de consulta que se realizó en tablas de DynamoDB
-    registrar(update.callback_query, 'carga_anual')
-
-def carga_mensual(update: Update, context: CallbackContext, chat_id):
-    context.bot.send_message(chat_id, text="Carros cargados:")
-    carpeta = 1
-    # se asignan los valores de valores de “img” y “doc” para obtener la ruta con con el método loc del dataFrame “datos”
-    img = "carros"
-    doc = "tcarros"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    # para el caso de “doc” datos.loc regresa una lista porque encuentra dos coincidencias el elemento [0] tiene terminación .xlsx el elemento [1] tiene terminación .png
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-    # para poder implementar el método sendDocument de bot es necesario pasarle cómo argumento come tipo _UrlopenRet 
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    ''' toneladas '''
-    context.bot.send_message(chat_id, text="Toneladas netas:")
-    carpeta = 1
-    img = "toneladas"
-    doc = "ttoneladas"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    ''' toneladas kilómetro'''
-    context.bot.send_message(chat_id, text="Toneladas-kilómetro")
-    carpeta = 1
-    img = "tkm"
-    doc = "ttkm"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    # la función “registrar” almacena la hora, id del mensaje que provienen del objeto update  y el tipo de consulta que se realizó en tablas de DynamoDB
-    registrar(update.callback_query, 'carga_mensual')
-
-def btn_comercio(update: Update, context: CallbackContext):
-    keyboard = [[InlineKeyboardButton("Comercio anual", callback_data='3_comercio_anual'),
-                 InlineKeyboardButton("Comercio mensual", callback_data='3_comercio_mensual')]]
+def btn_comercio(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(2)
+    keyboard = [[InlineKeyboardButton("Comercio anual", callback_data=str(ANUAL)),
+                 InlineKeyboardButton("Comercio mensual", callback_data=str(MENSUAL))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text('¿Con qué periodicidad prefieres la información? \U0001F4C5:', reply_markup=reply_markup)
-
-def comercio_anual(update: Update, context: CallbackContext, chat_id):
-    ''' evolución '''
-    context.bot.send_message(chat_id, text="Toneladas netas/Toneladas-kilómetro:")
-    carpeta = 2
-    img = "etca"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-
-    ''' porcentaje '''
-    context.bot.send_message(chat_id, text="Proporción")
-    carpeta = 2
-    img = "epcea"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-
-    ''' Tablas '''
-    ''' carga de comercio '''
-    context.bot.send_message(chat_id, text="Toneladas netas:")
-    carpeta = 2
-    doc = "tccea"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    ''' carga de comercio km '''
-    context.bot.send_message(chat_id, text="Toneladas-kilómetro")
-    carpeta = 2
-    doc = "ttkmcea"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    registrar(update.callback_query, 'comercio_anual')
-
-def comercio_mensual(update: Update, context: CallbackContext, chat_id):
-    ''' Tablas '''
-    ''' carga de comercio '''
-    context.bot.send_message(chat_id, text="Toneladas netas:")
-    carpeta = 2
-    doc = "tccem"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    ''' carga de comercio km '''
-    context.bot.send_message(chat_id, text="Toneladas-kilómetro")
-    carpeta = 2
-    doc = "ttkmcem"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    registrar(update.callback_query, 'comercio_mensual')
+    query.edit_message_text('¿Con qué periodicidad prefieres la información de comercio exterior del SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return SECOND
 
 
 ##################### ESTADÍSTICA DE PASAJEROS #####################
 ################################################################
-def btn_pasajeros(update: Update, context: CallbackContext):
-    keyboard = [[InlineKeyboardButton("Pasajeros anuales", callback_data='2_pasajeros_anual'),
-                 InlineKeyboardButton("Pasajeros mensuales", callback_data='2_pasajeros_mensual')]]
+def btn_pasajeros(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(3)
+    keyboard = [[InlineKeyboardButton("Pasajeros anuales", callback_data=str(ANUAL)),
+                 InlineKeyboardButton("Pasajeros mensuales", callback_data=str(MENSUAL))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text('¿Con qué periodicidad prefieres la información? \U0001F4C5:', reply_markup=reply_markup)
-
-def pasajeros_anual(update: Update, context: CallbackContext, chat_id):
-    ''' pasajeros '''
-    context.bot.send_message(chat_id, text="Pasajeros:")
-    carpeta = 3
-    img = "vpa"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-
-    ''' pkm '''
-    context.bot.send_message(chat_id, text="Pasajeros-kilómetro:")
-    carpeta = 3
-    doc = "tvpa"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    registrar(update.callback_query, 'pasajeros_anual')
-
-def pasajeros_mensual(update: Update, context: CallbackContext, chat_id):
-    ''' pasajeros '''
-    context.bot.send_message(chat_id, text="Pasajeros:")
-    carpeta = 3
-    img = "ptm"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(chat_id, photo=imgpath)
-
-    #context.bot.send_message(chat_id, text="Pasajeros-kilómetro:")
-    context.bot.send_message(chat_id, text="Tabla con comparativo:")
-    carpeta = 3
-    doc = "tptm"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(chat_id, document=tab)
-
-    registrar(update.callback_query, 'pasajeros_mensual')
+    query.edit_message_text('¿Con qué periodicidad prefieres la información de pasajeros del SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return SECOND
 
 ##################### ESTADÍSTICA DE EQUIPO FERROVIARIO ##############
 ################################################################
-def equipo(update: Update, context: CallbackContext):
-    ''' Composición de flota '''
-    context.bot.send_message(update.message.chat_id, text="Datos de equipo ferroviario del SFM.\n\n")
-    ''' equipo '''
-    context.bot.send_message(update.message.chat_id, text="Equipo ferroviario:")
-    carpeta = 4
-    doc = "tefa"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
+def equipo(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(4)
+    # se omite el estado SECOND, se asigna la frecuencia mensual  por defecto 
+    frecuencia.append(10)
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información del equipo ferroviario del SFM? \U0001F4C5:', reply_markup=reply_markup)   
+    return THIRD
 
-    ''' composición de flota '''
-    context.bot.send_message(update.message.chat_id, text="Composición de flota:")
-    carpeta = 4
-    img = "ecfa"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-
-    ''' evolución '''
-    context.bot.send_message(update.message.chat_id, text="Evolución y composición:")
-    carpeta = 4
-    doc = "tecfa"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    registrar(update, 'equipo')
 
 ##################### ESTADÍSTICA DE CONSUMO ENERGÉTICO ##############
 ################################################################
-def combustible(update: Update, context: CallbackContext):
-    ''' Consumo energético '''
-    context.bot.send_message(update.message.chat_id, text="Datos del consumo energético del SFM.\n\n")
-    ''' consumo de energía para el transporte de pasajeros '''
-    context.bot.send_message(update.message.chat_id, text="Para el transporte de pasajeros:")
-    carpeta = 5
-    doc = "tcepa"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    ''' consumo de energía para el transporte de carga '''
-    context.bot.send_message(update.message.chat_id, text="Para el transporte de carga:")
-    carpeta = 5
-    doc = "tcdm"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    ''' consumo de energía por tipo de servicio '''
-    context.bot.send_message(update.message.chat_id, text="Por tipo de servicio:")
-    carpeta = 5
-    img = "ecca"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-
-    registrar(update, 'combustible')
+def combustible(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(5)
+    # se omite el estado SECOND, se asigna la frecuencia mensual  por defecto 
+    frecuencia.append(10)
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información del consumo energético del SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return THIRD
 
 ##################### ESTADÍSTICA DE PERSONAL ##############
 ################################################################
-def personal(update: Update, context: CallbackContext):
-    ''' Personal empleado '''
-    context.bot.send_message(update.message.chat_id, text="Datos del personal del SFM.\n\n")
-    ''' personal '''
-    context.bot.send_message(update.message.chat_id, text="Personal empleado:")
-    carpeta = 6
-    doc = "tpea"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    ''' evolución '''
-    context.bot.send_message(update.message.chat_id, text="Personal activo:")
-    carpeta = 6
-    img = "epa"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-
-    registrar(update, 'personal')
+def personal(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(6)
+    # se omite el estado SECOND, se asigna la frecuencia mensual  por defecto 
+    frecuencia.append(10)
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información del personal del SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return THIRD
 
 ##################### ESTADÍSTICA DE SINIESTROS #####################
 ################################################################
-def siniestros(update: Update, context: CallbackContext):
-    ''' Siniestros totales '''
-    context.bot.send_message(update.message.chat_id, text="Datos de siniestros en el SFM.\n\n")
-    ''' siniestros totales '''
-    context.bot.send_message(update.message.chat_id, text="Siniestros totales:")
-    carpeta = 7
-    img = "rsm"
-    doc = "trsm"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
+def siniestros(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(7)
+    # se omite el estado SECOND, se asigna la frecuencia mensual  por defecto 
+    frecuencia.append(10)
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información de siniestros en el SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return THIRD
 
-    ''' siniestros por grupo '''
-    context.bot.send_message(update.message.chat_id, text="Siniestros por grupo:")
-    carpeta = 7
-    img = "esgt"
-    doc = "tsgt"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
+def robo(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(8)
+    # se omite el estado SECOND, se asigna la frecuencia mensual  por defecto 
+    frecuencia.append(10)
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información de robo en el SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return THIRD
 
-    ''' siniestros por tipo '''
-    context.bot.send_message(update.message.chat_id, text="Siniestros por tipo")
-    carpeta = 7
-    doc = "trscg"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
+def vandalismo(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(9)
+    # se omite el estado SECOND, se asigna la frecuencia mensual  por defecto 
+    frecuencia.append(10)
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información de vandalismo en el SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return THIRD
 
-    registrar(update, 'siniestros')
-
-def robo(update: Update, context: CallbackContext):
-    ''' Robos totales '''
-    context.bot.send_message(update.message.chat_id, text="Datos de robo en el SFM.\n\n")
-    ''' robo total '''
-    context.bot.send_message(update.message.chat_id, text="Robos totales:")
-    carpeta = 8
-    img = "rrm"
-    doc = "trrm"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    ''' robos por categoría '''
-    context.bot.send_message(update.message.chat_id, text="Robos por categoría:")
-    context.bot.send_message(update.message.chat_id, text="Robo a tren:")
-    carpeta = 8
-    doc = "trct"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    ''' robos por tipo '''
-    context.bot.send_message(update.message.chat_id, text="Robo a vía")
-    carpeta = 8
-    doc = "trcv"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    registrar(update, 'robo')
-
-def vandalismo(update: Update, context: CallbackContext):
-    ''' Vandalismo totales '''
-    context.bot.send_message(update.message.chat_id, text="Datos de vandalismo en el SFM.\n\n")
-    ''' vandalismo total '''
-    context.bot.send_message(update.message.chat_id, text="Vandalismo total:")
-    carpeta = 9
-    img = "vtm"
-    doc = "tvtm"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    carpeta = 9
-    img = "vvm"
-    doc = "tvvm"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    ''' vandalismo por categoría '''
-    context.bot.send_message(update.message.chat_id, text="Vandalismo por categoría:")
-    context.bot.send_message(update.message.chat_id, text="Vandalismo al tren:")
-    carpeta = 9
-    doc = "tvct"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    ''' vandalismo por tipo '''
-    context.bot.send_message(update.message.chat_id, text="Vandalismo de vía")
-    carpeta = 9
-    doc = "tvcv"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    registrar(update, 'vandalismo')
-
-def bloqueos(update: Update, context: CallbackContext):
-    ''' Bloqueos totales '''
-    context.bot.send_message(update.message.chat_id, text="Datos de bloqueos en el SFM.\n\n")
-    carpeta = 10
-    doc = "trbva"
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = doc + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    ''' bloqueos totales '''
-    context.bot.send_message(update.message.chat_id, text="Bloqueos totales:")
-    carpeta = 10
-    img = "ebf"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-
-    ''' horas de bloqueo '''
-    context.bot.send_message(update.message.chat_id, text="Horas de bloqueo:")
-    carpeta = 10
-    img = "rchb"
-    doc = "thvb"
-    imgpath =  s3Buncket + datos.loc[str(carpeta) + '_' + img]["ruta"]
-    docpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][0]
-    tabpath =  s3Buncket + datos.loc[str(carpeta) + '_' + doc]["ruta"][1]
-    context.bot.sendPhoto(update.message.chat_id, photo=docpath)
-    context.bot.sendPhoto(update.message.chat_id, photo=imgpath)
-    tab = urllib.request.urlopen(tabpath)
-    tab.name = img + '.xlsx'
-    context.bot.sendDocument(update.message.chat_id, document=tab)
-
-    registrar(update, 'bloqueos')
+def bloqueos(update, context):
+    query = update.callback_query
+    query.answer()
+    carpeta.append(10)
+    # se omite el estado SECOND, se asigna la frecuencia mensual  por defecto 
+    frecuencia.append(10)
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información de bloqueos en el SFM? \U0001F4C5:', reply_markup=reply_markup)
+    return THIRD
 
 def desconocido(update: Update, context: CallbackContext):
     ''' Desconocido '''
     context.bot.send_message(update.message.chat_id, text="Disculpa, no entendí tu mensaje \U0001F641.")
+
+##################### FUNCIONES PARA EL SEGUNDO ESTADO #####################
+################################################################
+
+def mensual(update, context):
+    query = update.callback_query
+    query.answer()
+    # se asigna la frecuencia en 10 porque es el indice de MENSUAL en callback
+    frecuencia.append(10)
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    # pasajeros no cuenta con graficas, quitamos la opcion del teclado
+    if carpeta[0] == 2:
+        keyboard[0].pop(1)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información? \U0001F4C5:', reply_markup=reply_markup)
+    return THIRD
+
+def anual(update, context):
+    query = update.callback_query
+    query.answer()
+    frecuencia.append(11)
+    # Caso especial de carga anual 
+    if carpeta[0] == 1: 
+        graficas(update, context)
+        return ConversationHandler.END
+
+    keyboard = [[InlineKeyboardButton("Tablas", callback_data=str(TABLA)),
+                 InlineKeyboardButton("Graficas", callback_data=str(GRAFICA)),
+                 InlineKeyboardButton("Excel", callback_data=str(EXCEL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('¿Con qué formato prefieres la información? \U0001F4C5:', reply_markup=reply_markup)
+    return THIRD
+
+
+##################### FUNCIONES PARA EL SEGUNDO ESTADO #####################
+################################################################
+def graficas(update, context):
+    query = update.callback_query
+    query.answer()
+    chat_id = query.message.chat_id
+    # se genera el identificador para los diccionarios
+    graficas = catalogo_graficas[str(carpeta[0]) + str(frecuencia[0])]
+    mensaje = mensajes[str(carpeta[0]) + str(frecuencia[0])]
+    query.edit_message_text(
+        text=mensaje[1]
+    )
+    # se asignan el valor de valores de “img”  para obtener la ruta con con el método loc del dataFrame “datos”
+    for img in graficas:
+        imgpath =  s3Buncket + datos.loc[str(carpeta[0]) + '_' + img]["ruta"]
+        context.bot.sendPhoto(chat_id, photo=imgpath)
+    frecuencia.clear()
+    carpeta.clear()
+    # la función “registrar” almacena la hora, id del mensaje que provienen del objeto update  y el tipo de consulta que se realizó en tablas de DynamoDB
+    registrar(update.callback_query, mensaje[0])
+    
+    return ConversationHandler.END
+
+def tablas(update, context):
+    query = update.callback_query
+    query.answer()
+    chat_id = query.message.chat_id
+    # con la frecuencia y catalogo se genera el identificador para los diccionarios
+    tablas = catalogo_tablas[str(carpeta[0]) + str(frecuencia[0])]
+    mensaje = mensajes[str(carpeta[0]) + str(frecuencia[0])]
+    query.edit_message_text(
+        text=mensaje[1]
+    )
+    # para el caso de “doc” datos.loc regresa una lista porque encuentra dos coincidencias el elemento [0] tiene terminación .xlsx el elemento [1] tiene terminación .png
+    for doc in tablas:
+        docpath =  s3Buncket + datos.loc[str(carpeta[0]) + '_' + doc]["ruta"][0]
+        context.bot.sendPhoto(chat_id, photo=docpath)
+    frecuencia.clear()
+    carpeta.clear()
+    # la función “registrar” almacena la hora, id del mensaje que provienen del objeto update  y el tipo de consulta que se realizó en tablas de DynamoDB
+    registrar(update.callback_query, mensaje[0])
+    return ConversationHandler.END
+
+
+def excel(update, context):
+    query = update.callback_query
+    query.answer()
+    chat_id = query.message.chat_id
+    # con la frecuencia y catalogo se genera el identificador para los diccionarios
+    excel = catalogo_tablas[str(carpeta[0]) + str(frecuencia[0])]
+    mensaje = mensajes[str(carpeta[0]) + str(frecuencia[0])]
+    query.edit_message_text(
+        text=mensaje[1]
+    )
+    # para el caso de “doc” datos.loc regresa una lista porque encuentra dos coincidencias el elemento [0] tiene terminación .xlsx el elemento [1] tiene terminación .png
+    # para poder implementar el método sendDocument de bot es necesario pasarle cómo argumento come tipo _UrlopenRet 
+    for doc in excel:
+        tabpath =  s3Buncket + datos.loc[str(carpeta[0]) + '_' + doc]["ruta"][1]
+        tab = urllib.request.urlopen(tabpath)
+        tab.name = doc + '.xlsx'
+        context.bot.sendDocument(chat_id, document=tab)
+    frecuencia.clear()
+    carpeta.clear()
+    # la función “registrar” almacena la hora, id del mensaje que provienen del objeto update  y el tipo de consulta que se realizó en tablas de DynamoDB
+    registrar(update.callback_query, mensaje[0])
+    return ConversationHandler.END
